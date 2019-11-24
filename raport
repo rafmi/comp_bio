@@ -1,0 +1,34 @@
+extend.py
+Używa blastp od ncbi, wykorzystując api (https://ncbi.github.io/blast-cloud/dev/api.html).
+Najpierw wysyłamy wszystkie fragmenty białek, dostajemy RID (identyfikator zadania).
+Potem regularnie sprawdzamy czy zadanie zostało zakończone (odpowiednia wartość po wykonaniu zapytania do ncbi musi być ustawiona na 'READY'). Nie używałem do tego Biopythona, bo chciałem otrzymywać informacje o czasie oczekiwania (u mnie co 15s uaktualnia się informacja o tym ile już trwa zapytanie).
+Otrzymujemy XML'a, z którego odfiltrowujemy białka spełniające warunki (podobieństwo i evalue).
+Następnie wyłuskujemy identyfikatory białek (protein accession number).
+Miałem wcześniej problem, żeby znaleźć pełne sekwencje mając identyfikatory, ale okazało się, że ncbi pozwala na bardzo wygodny dostęp do baz danych z użyciem API (entrez/eutils, https://www.ncbi.nlm.nih.gov/books/NBK25499/)
+Używając powyższego API zapisujemy białka jako plik .fasta. Nie wszystkie białka zostały odnalezione w bazie danych.
+Zanim znalazłem API do bazy danych ncbi chciałem wyłuskiwać informacje z htmla po wykonaniu zapytania do blasp, poświęciłem na to dużo czasu i żałuję, że nie zainteresowałem się bardziej czytaniem dokumentacji przed pisaniem kodu.
+
+scan_pfam.py
+Wykorzystuje https://www.ebi.ac.uk/Tools/hmmer/search/hmmscan
+Wysyłamy zapytanie, dostajemy identyfikator (UUID) i pobieramy plik tsv.
+Parsujemy, tworzymy plik csv z zerami i jedynkami.
+
+fisher.py
+Elementy sumy z zadania liczymy na dwa sposoby.
+Pierwszy zamienia wszystko na logarytmy, co pozwala wykonywać operacje na ogromnych liczbach bez obaw o overflow (mnożenie wtedy staje się dodawaniem, dzielenie odejmowaniem). Uzywam też przybliżenia Stirlinga do oszacowania ln(x!) - ściągnięte z:
+"A fast and efficient algorithm
+for the Fisher exact test
+JERROLD H. ZAR
+Northern Illinois University, DeKalb, Illinois"
+Drugi sposób przekształca dwumiany na silnie, dostajemy dwie grupy: licznik i mianownik.
+Redukujemy czynniki powtarzające się z licznika i mianownika, później dzielimy i mnożymy, w takiej kolejności żeby trzymać się blisko 1.0
+
+Wzór z zadania sugeruje implementację scipy.stats.fisher_exact(table) ze współczynnikiem 'greater', co wymaga założenia, że nasze próbki powinny znajdować się "po prawej stronie od środka" rozkładu.
+Odpowienia kolejność plików na wejściu (duży - mały) w większości pozwala spełnić to założenie (oprócz domeny SNF2_N - występuje po "lewej stronie", logi ze skryptu to wyjaśniają).
+
+W teście fishera dla każdej domeny zakładamy, ze częstość wystąpień tej domeny jest niezależna od pliku. Skrypt wylicza pvalue, małe pvalue (mniejsze niż 0.05) sugeruje, że próbka przeczy założeniu i jest "ciekawa", albo założenie nie jest spełnione. W przykładowych danych występują domeny, które mają pvalue < 0.05 (np Helicase_C). Ta domena jest bardzo popularna, co sugeruje, że z fragmenty z przykładowego wejścia z jakiegoś powodu nieoczekiwanie często nie mają tej domeny. Być zostały z nich wycięte fragmenty kodujące tę domenę, a potem zostały przywrócone przy wyszukiwaniu białek przez blastp.
+Logi ze skryptu wypisują występowanie domen o małym pvalue w obu plikach i ich częstość występowania w każdym przypadku znacznie się różni w obu plikach.
+
+run_all.sh
+Wszystko działa tylko w python3, cały proces najlepiej odpalić używając bash run_all.sh. Logi dokładnie opisują co się dzieje w każdym skrypcie. fisher.py dodatkowo wypisuje domeny istotne statystycznie (pvalue < 0.05)
+
